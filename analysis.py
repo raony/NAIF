@@ -5,10 +5,16 @@ class network(list):
     pass
 
 class Analysis(object):
+    
+    class ConfigError(StandardError):
+        pass
+    
     def __init__(self, db):
         self.linker = {'friend': None}
         self.db = db
         self.db.fillLinks(self.linker)
+        if not self.linker['friend']:
+            raise Analysis.ConfigError
         self.nodes = self.db.getNodes()
     
     def create_network(self, name, n):
@@ -57,7 +63,20 @@ class AnalysisTest(unittest.TestCase):
         self.failUnlessEqual([1,0,0,1], networks[0][1])
         self.failUnlessEqual([0,0,0,0], networks[0][2])
         self.failUnlessEqual([1,1,0,0], networks[0][3])
-        
+    
+    def test_friend_fill(self):
+        class amigos:
+            def getNodes(self):
+                return []
+            def fillLinks(self, linker):
+                return None
+    
+        try:
+            target = Analysis(amigos())
+            self.fail('should rise an analysis config error')
+        except Analysis.ConfigError:
+            pass
+    
         
 if __name__ == '__main__':
     unittest.main()
