@@ -2,6 +2,7 @@ import unittest
 import db
 import metrics
 import analysis
+import sys
 
 def suite():
     return unittest.TestSuite([db.suite(),
@@ -10,4 +11,6 @@ def suite():
                                ])
 
 if __name__ == '__main__':
-    unittest.TextTestRunner(verbosity=2).run(suite())
+    if not unittest.TextTestRunner(verbosity=2).run(suite()).wasSuccessful():
+        sys.exit(1)
+    

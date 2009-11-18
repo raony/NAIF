@@ -90,7 +90,7 @@ class AnalysisTest(unittest.TestCase):
                 self.matriz = [[node(1),node(3)],
                                [node(0),node(3)],[],
                                [node(0),node(1)]]
-                return self.matriz[thnode.id]
+                return self.matriz[thenode.id]
         
         class amigos:
             def get_nodes(self):
