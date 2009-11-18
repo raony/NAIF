@@ -2,16 +2,16 @@ import unittest
 
 from networkx.graph import Graph
 from libsna.libSNA import SocialNetwork
+from basic import Metrics 
 
-
-class libSNAMetrics(object):
+class libSNAMetrics(Metrics):
     def __init__(self):
         self._metrics = {'closeness' : None, 'betweenness' : None, 'totalDegree' : None,}
         
-    def listMetrics(self):
+    def _list_metrics(self):
         return self._metrics.keys()
     
-    def runMetrics(self, network):
+    def _run_metrics(self, network):
         sn = SocialNetwork()
         sn.graph = network
         sn.calculateMeasures()
@@ -19,7 +19,7 @@ class libSNAMetrics(object):
         self._metrics['betweenness'] = sn.betweennessDict
         self._metrics['totalDegree'] = sn.totalDegreeDict
     
-    def getMetric(self, metric, node):
+    def _get_metric(self, metric, node):
         return self._metrics[metric][node]
         
 
@@ -40,10 +40,13 @@ class libSNAMetricsTest(unittest.TestCase):
 
     def test_initialize(self):
         target = libSNAMetrics()
-        target.runMetrics(self.graph)
-        self.failUnlessAlmostEqual(0.643, target.getMetric('closeness', 'fernando'), 3) 
-        self.failUnlessAlmostEqual(0.231, target.getMetric('betweenness', 'fernando'), 3) 
-        self.failUnlessAlmostEqual(0.556, target.getMetric('totalDegree', 'fernando'), 3) 
+        target.run_metrics(self.graph)
+        self.failUnlessAlmostEqual(0.643, target.get_metric('closeness', 'fernando'), 3) 
+        self.failUnlessAlmostEqual(0.231, target.get_metric('betweenness', 'fernando'), 3) 
+        self.failUnlessAlmostEqual(0.556, target.get_metric('totalDegree', 'fernando'), 3)
+
+def suite():
+    return unittest.TestLoader().loadTestsFromTestCase(libSNAMetricsTest) 
         
 if __name__ == '__main__':
     unittest.main()
