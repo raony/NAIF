@@ -69,6 +69,31 @@ class GraphDatabaseTest(unittest.TestCase):
         for n in self.graphdb.node.type('member'):
             self.assertEquals(m1, n)
     
+    def test_node_generic_properties(self):
+        name = 'teste nome'
+        age = 16
+        node = self.graphdb.node(32, name=name, age=age)
+        self.assertEquals(name, node['name'])
+        self.assertEquals(age, node['age'])
+    
+    def test_set_node_generic_properties(self):
+        name = 'teste nome'
+        node = self.graphdb.node(47)
+        node['name'] = name
+        self.assertEquals(name, node['name'])
+    
+    def test_set_node_type_exception(self):
+        node = self.graphdb.node(47)
+        try:
+            node['type'] = 'arroz'
+            self.fail('should raise a KeyError exception.')
+        except KeyError:
+            self.assertEquals('node', node.type)
+    
+    def test_contains_node_property(self):
+        node = self.graphdb.node(47, name='edgar')
+        self.assertTrue('name' in node)
+        self.assertTrue('age' not in node)
     
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testFirstTimeNodeIndexInit']

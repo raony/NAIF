@@ -24,6 +24,17 @@ class Node(object):
     def __eq__(self, obj):
         return type(self) == type(obj) and self.__node__ == obj.__node__
     
+    def __getitem__(self, index):
+        return self.__node__[index]
+    
+    def __setitem__(self, index, value):
+        if index == 'type':
+            raise KeyError("'type' attribute is read-only.")
+        self.__node__[index] = value
+    
+    def __contains__(self, key):
+        return key in self.__node__
+    
 class GraphDatabase(object):
     def __init__(self, path='neo/', verbose=False):
         if verbose:
@@ -88,10 +99,10 @@ class GraphDatabase(object):
                 return Node(gdb.__node_index__[str(index)])
             def __contains__(self, key):
                 return gdb.__node_index__[str(key)] != None
-            def __call__(self, id, type='node'):
+            def __call__(self, id, type='node', **kwargs):
                 if gdb.__node_index__[str(id)]:
                     raise Node.AlreadyExist
-                node = gdb.__neo__.node(net_id=id, type=type)
+                node = gdb.__neo__.node(net_id=id, type=type, **kwargs)
                 
                 gdb.add_node_type(type)
                 
