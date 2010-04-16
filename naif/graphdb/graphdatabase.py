@@ -45,15 +45,14 @@ class GraphDatabase(object):
                 return Node(gdb.__node_index__[str(index)])
             def __contains__(self, key):
                 return gdb.__node_index__[str(key)] != None
+            def __call__(self, id):
+                if gdb.__node_index__[str(id)]:
+                    raise Node.AlreadyExist
+                node = gdb.__neo__.node(net_id=id, type='node')
+                gdb.__neo__.ref.NODE(node)
+                gdb.__node_index__[str(id)] = node
+                return Node(node)
         return nodelist()
-
-    def new_node(self, id):
-        if self.__node_index__[str(id)]:
-            raise Node.AlreadyExist
-        node = self.__neo__.node(net_id=id, type='node')
-        self.__neo__.ref.NODE(node)
-        self.__node_index__[str(id)] = node
-        return Node(node)
 
     def shutdown(self):
         self.__neo__.shutdown()
