@@ -37,19 +37,65 @@ class GraphDatabase(object):
         self.__neo__ = neo4j.GraphDatabase(path, log=logger)
         self.__node_index__ = self.__neo__.index('node index', create=True)
     
+    def __node_types__(self):
+        types = self.__neo__.ref.get('node_types', '')
+        return types and types.split(',') or []
+    
+    def __nodes_by_type__(self, type):
+        class NodeByType(neo4j.Traversal):
+            types = [ neo4j.Outgoing.__getattr__(type.upper()) ] #@UndefinedVariable
+            order = neo4j.DEPTH_FIRST #@UndefinedVariable
+            stop = neo4j.STOP_AT_END_OF_GRAPH #@UndefinedVariable
+            returnable = neo4j.RETURN_ALL_BUT_START_NODE #@UndefinedVariable
+        
+            def __iter__(self):
+                class MyIter(object):
+                    def __init__(self, iter):
+                        self.iter = iter
+                    def next(self):
+                        return Node(self.iter.next())
+                return MyIter(super(NodeByType, self).__iter__())
+                
+        return NodeByType(self.__neo__.ref)
+    
+    
+    def add_node_type(self, type):
+        types = self.__node_types__()
+        if type not in types:
+            types.append(type)
+        self.__neo__.ref['node_types'] = ','.join(types)        
+    
     @property
     def node(self):
         gdb = self
         class nodelist(object):
+            @property
+            def type(self):
+                class nodetype(object):
+                    def __init__(self):
+                        self.types = gdb.__node_types__()
+                    def __getitem__(self, index):
+                        return self.types[index]
+                    def __contains__(self, obj):
+                        return obj in self.types
+                    def __len__(self):
+                        return len(self.types)
+                    def __call__(self, type):
+                        return gdb.__nodes_by_type__(type)
+                return nodetype()
+            
             def __getitem__(self, index):
                 return Node(gdb.__node_index__[str(index)])
             def __contains__(self, key):
                 return gdb.__node_index__[str(key)] != None
-            def __call__(self, id):
+            def __call__(self, id, type='node'):
                 if gdb.__node_index__[str(id)]:
                     raise Node.AlreadyExist
-                node = gdb.__neo__.node(net_id=id, type='node')
-                gdb.__neo__.ref.NODE(node)
+                node = gdb.__neo__.node(net_id=id, type=type)
+                
+                gdb.add_node_type(type)
+                
+                gdb.__neo__.ref.__getattr__(type.upper())(node)
                 gdb.__node_index__[str(id)] = node
                 return Node(node)
         return nodelist()

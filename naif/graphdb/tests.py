@@ -47,6 +47,29 @@ class GraphDatabaseTest(unittest.TestCase):
         except Node.AlreadyExist:
             pass
     
+    def test_node_type_property(self):
+        node = self.graphdb.node(32, type='event')
+        self.assertEquals('event', node.type)
+    
+    def test_list_types(self):
+        self.graphdb.node(32, type='event')
+        self.graphdb.node(11, type='member')
+        self.assertEquals(2, len(self.graphdb.node.type))
+        self.assertTrue('event' in self.graphdb.node.type)
+        self.assertTrue('member' in self.graphdb.node.type)
+    
+    def test_list_nodes_by_type(self):
+        e1 = self.graphdb.node(32, type='event')
+        m1 = self.graphdb.node(11, type='member')
+        e2 = self.graphdb.node(15, type='event')
+        nodes = [n for n in self.graphdb.node.type('event')]
+        self.assertTrue(2, len(nodes))
+        self.assertTrue(e1 in nodes)
+        self.assertTrue(e2 in nodes)
+        for n in self.graphdb.node.type('member'):
+            self.assertEquals(m1, n)
+    
+    
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testFirstTimeNodeIndexInit']
     unittest.main()
