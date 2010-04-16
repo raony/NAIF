@@ -8,6 +8,8 @@ This is a wrapper module over neo4j
 import neo4j
 
 class Node(object):
+    class AlreadyExist(Exception):
+        pass
     def __init__(self, neo_node):
         self.__node__ = neo_node
     
@@ -41,9 +43,13 @@ class GraphDatabase(object):
         class nodelist(object):
             def __getitem__(self, index):
                 return Node(gdb.__node_index__[str(index)])
+            def __contains__(self, key):
+                return gdb.__node_index__[str(key)] != None
         return nodelist()
 
     def new_node(self, id):
+        if self.__node_index__[str(id)]:
+            raise Node.AlreadyExist
         node = self.__neo__.node(net_id=id, type='node')
         self.__neo__.ref.NODE(node)
         self.__node_index__[str(id)] = node
