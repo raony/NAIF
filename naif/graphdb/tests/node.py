@@ -5,7 +5,7 @@ Created on Apr 19, 2010
 '''
 import unittest
 from graphdb.graphdatabase import Node
-from graphdb.tests.base import GraphDatabaseTest
+from base import GraphDatabaseTest
 
 
 class NodeTest(GraphDatabaseTest):
@@ -22,6 +22,9 @@ class NodeTest(GraphDatabaseTest):
     def test_get_node_by_id(self):
         node = self.graphdb.node(16)
         self.assertEquals(node, self.graphdb.node[16])
+        
+    def test_node_not_found(self):
+        self.assertTrue(not self.graphdb.node[16])
     
     def test_contains_node_by_id(self):
         self.graphdb.node(16)

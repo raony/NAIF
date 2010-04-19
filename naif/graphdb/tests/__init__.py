@@ -1,12 +1,10 @@
 import unittest
-from . import node, link
+import node, link, nodefeed
 
-
-if __name__ == "__main__":
-    #import sys;sys.argv = ['', 'Test.testName']
+def suite():
     tl = unittest.TestLoader()
     suites = []
     suites.append( tl.loadTestsFromModule(node) )
     suites.append( tl.loadTestsFromModule(link) )
-    s = unittest.TestSuite(suites)
-    unittest.TextTestRunner().run(s)
+    suites.append( tl.loadTestsFromModule(nodefeed) )
+    return unittest.TestSuite(suites)

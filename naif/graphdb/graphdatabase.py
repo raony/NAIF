@@ -7,6 +7,7 @@ This is a wrapper module over neo4j
 """
 import neo4j
 import pickle
+from datetime import datetime
 
 class NodeType(object):
     def __init__(self, name):
@@ -120,6 +121,99 @@ class Node(object):
     def __contains__(self, key):
         return key in self.__node__
     
+    def update(self, *args, **kwargs):
+        return self.__node__.update(*args, **kwargs)
+    
+class FeedResult(object):
+    OK = 1
+    FAILURE = 0
+    
+    def __init__(self, datetime):
+        self.status = self.FAILURE
+        self.datetime = datetime
+        self.inserted = 0
+        self.conflicted = 0
+        self.updated = 0
+        self.total = 0
+
+class FeedHistory(object):
+            
+    def __init__(self, neo):
+        self.__neo__ = neo
+        if self.__neo__.ref.FEEDHISTORY.single:
+            self.__history_head__ = self.__neo__.ref.FEEDHISTORY.single.end 
+        else:
+            self.__history_head__ = self.__neo__.node()
+            self.__neo__.ref.FEEDHISTORY(self.__history_head__)
+            
+    def __node__(self, result):
+        return self.__neo__.node(datetime=result.datetime.strftime('%Y%m%d%H%M%S%f'),
+                                 status=result.status, 
+                                 inserted=result.inserted,
+                                 updated = result.updated,
+                                 conflicted = result.conflicted)
+    
+    def __result__(self, node):
+        result = FeedResult(datetime.strptime(node['datetime'], '%Y%m%d%H%M%S%f'))
+        result.status = int(node['status'].toString())
+        result.inserted = int(node['inserted'].toString())
+        result.conflicted = int(node['conflicted'].toString())
+        result.updated = int(node['updated'].toString())
+        return result
+    
+    def __getitem__(self, id):
+        fh = self
+        class FeedLine(neo4j.Traversal):
+            types = [ neo4j.Outgoing.__getattr__(str(id)) ] #@UndefinedVariable
+            returnable = neo4j.RETURN_ALL_BUT_START_NODE #@UndefinedVariable
+
+            def __init__(self, startnode):
+                super(FeedLine, self).__init__(startnode)
+                self.__data__ = []
+                self.__next__ = self.__iter__().next
+                
+            def __getitem__(self, key):
+                try:
+                    return self.__data__[key]
+                except IndexError:
+                    pass
+                try:
+                    for i in range(key - len(self.__data__) + 1): #@UnusedVariable
+                        self.__data__.append(self.next())
+                    return self.__data__[-1]
+                except StopIteration:
+                    raise IndexError
+            
+            def __len__(self):
+                end = len(self.__data__)
+                try:
+                    while (end):
+                        self.__getitem__(end)
+                        end += 1
+                except IndexError:
+                    pass
+                return len(self.__data__)
+                    
+
+            def next(self):
+                return fh.__result__(self.__next__())
+            
+            def append(self, result):
+                new = fh.__node__(result)
+#                import pdb
+#                pdb.set_trace()
+                rel = fh.__history_head__.__getattr__(str(id)).single
+                tmp = None
+                if rel != None:
+                    tmp = rel.end
+                    rel.delete()
+                fh.__history_head__.__getattr__(str(id))(new)
+                if tmp:
+                    new.__getattr__(str(id))(tmp)
+
+        return FeedLine(self.__history_head__)
+        
+        
 class GraphDatabase(object):
     def __init__(self, path='neo/', verbose=False):
         if verbose:
@@ -133,6 +227,7 @@ class GraphDatabase(object):
         self.__neo__ = neo4j.GraphDatabase(path, log=logger)
         self.__neopath__ = path
         self.__node_index__ = self.__neo__.index('node index', create=True)
+        self.__history__ = None 
     
     def __types__(self, type_attr):
         types = self.__neo__.ref.get(type_attr, '')
@@ -197,7 +292,10 @@ class GraphDatabase(object):
                 return nodetype()
             
             def __getitem__(self, index):
-                return Node(gdb.__node_index__[str(index)])
+                result = gdb.__node_index__[str(index)]
+                if result:
+                    result = Node(result)
+                return result
             def __contains__(self, key):
                 return gdb.__node_index__[str(key)] != None
             def __call__(self, id, type='node', **kwargs):
@@ -261,6 +359,49 @@ class GraphDatabase(object):
 
     def shutdown(self):
         self.__neo__.shutdown()
+        
+    def read_nodes(self, nodeFeed, transaction):
+        
+        result = FeedResult(datetime.today())
+        
+        try:
+            for node in nodeFeed:
+                if node['id'] in self.node:
+                    if nodeFeed.always_update or nodeFeed.conflict(node, self.node[node['id']]):
+                        node['net_id'] = node['id']
+                        del node['id']
+                        self.node[node['net_id']].update(node)        
+                        result.updated += 1
+                    else:
+                        result.conflicted += 1
+                else:
+                    result.inserted += 1
+                    self.node(**node)
+                result.total += 1
+        except:
+            result.status = FeedResult.FAILURE
+            transaction.failure()
+        else:
+            result.status = FeedResult.OK
+            transaction.success()
+        finally:
+            self.add_to_history(nodeFeed.id, result)
+            transaction.finish()
+        return result    
+    
+    def add_to_history(self, feed_id, result):
+#        if feed_id not in self.__history__:
+#            self.__history__[feed_id] = [] 
+        self.history[feed_id].append(result)
+    
+    def feed_history(self, feed_id):
+        return self.history[feed_id]
+    
+    @property
+    def history(self):
+        if not self.__history__:
+            self.__history__ = FeedHistory(self.__neo__)
+        return self.__history__
     
     @property
     def transaction(self):

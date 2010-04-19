@@ -4,7 +4,7 @@ Created on Apr 19, 2010
 @author: raony
 '''
 import unittest
-from graphdb.tests.base import GraphDatabaseTest
+from base import GraphDatabaseTest
 from graphdb.graphdatabase import LinkType, Link
 
 
