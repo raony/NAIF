@@ -84,6 +84,11 @@ class Link(object):
     def __getitem__(self, index):
         return self.__link__[index]
     
+    def __delitem__(self, key):
+        if key in ['binary', 'strength']:
+            raise KeyError('{0} cannot be deleted.'.format(key))
+        del self.__link__[key]
+    
     def __setitem__(self, key, value):
         if key in ['binary', 'strength']:
             raise KeyError('{0} is a read-only attribute.'.format(key))
@@ -113,6 +118,11 @@ class Node(object):
     def __getitem__(self, index):
         return self.__node__[index]
     
+    def __delitem__(self, index):
+        if index == 'type':
+            raise KeyError("'type' attribute cannot be deleted.")
+        del self.__node__[index]
+    
     def __setitem__(self, index, value):
         if index == 'type':
             raise KeyError("'type' attribute is read-only.")
@@ -134,7 +144,10 @@ class FeedResult(object):
         self.inserted = 0
         self.conflicted = 0
         self.updated = 0
-        self.total = 0
+    
+    @property
+    def total(self):
+        return self.inserted + self.conflicted + self.updated
 
 class FeedHistory(object):
             
@@ -377,7 +390,6 @@ class GraphDatabase(object):
                 else:
                     result.inserted += 1
                     self.node(**node)
-                result.total += 1
         except:
             result.status = FeedResult.FAILURE
             transaction.failure()

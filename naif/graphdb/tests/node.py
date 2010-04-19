@@ -89,6 +89,18 @@ class NodeTest(GraphDatabaseTest):
         self.assertTrue('name' in node)
         self.assertTrue('age' not in node)
 
+    def test_del_node_property(self):
+        node = self.graphdb.node(47, name='edgar')
+        del node['name']
+        self.assertTrue('name' not in node)
+    
+    def test_del_node_type_property(self):
+        node = self.graphdb.node(47, name='edgar')
+        try:
+            del node['type']
+            self.fail('Should raise KeyError.')
+        except KeyError:
+            pass
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

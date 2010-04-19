@@ -23,7 +23,10 @@ class LinkTest(GraphDatabaseTest):
         start = self.graphdb.node(1)
         end = self.graphdb.node(2)
         link = self.graphdb.link(12, start, end)
-        self.assertEquals(link.__link__, self.graphdb.link[12].__link__)
+        self.assertEquals(link, self.graphdb.link[12])
+    
+    def test_link_not_found(self):
+        self.assertTrue(not self.graphdb.link[12])
     
     def test_contains_link_by_id(self):
         start = self.graphdb.node(1)
@@ -132,6 +135,33 @@ class LinkTest(GraphDatabaseTest):
         self.assertEquals(LinkType.VALUED, filter(lambda x: x == 'FRIEND', self.graphdb.link.type)[0].binary)
         self.graphdb.link(18, end, start, type="FRIEND")
         self.assertEquals(LinkType.MIXED, filter(lambda x: x == 'FRIEND', self.graphdb.link.type)[0].binary)
+    
+    def test_del_link_property(self):
+        start = self.graphdb.node(1)
+        end = self.graphdb.node(2)
+        link = self.graphdb.link(16, start, end, familiar=True)
+        del link['familiar']
+        self.assertTrue('familiar' not in link)
+        
+    def test_del_binary_exception(self):
+        start = self.graphdb.node(1)
+        end = self.graphdb.node(2)
+        link = self.graphdb.link(16, start, end, familiar=True)
+        try:
+            del link['binary']
+            self.fail('Should rise a KeyError exception.')
+        except KeyError:
+            pass
+    
+    def test_del_strength_exception(self):
+        start = self.graphdb.node(1)
+        end = self.graphdb.node(2)
+        link = self.graphdb.link(16, start, end, familiar=True)
+        try:
+            del link['strength']
+            self.fail('Should rise a KeyError exception.')
+        except KeyError:
+            pass
 
 
 if __name__ == "__main__":
