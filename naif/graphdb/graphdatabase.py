@@ -148,6 +148,9 @@ class FeedResult(object):
     @property
     def total(self):
         return self.inserted + self.conflicted + self.updated
+    
+    def __str__(self):
+        return '{3} >> inserted: {0}, updated: {1}, conflicted: {2}'.format(self.inserted, self.updated, self.conflicted, self.status)
 
 class FeedHistory(object):
             
@@ -373,23 +376,34 @@ class GraphDatabase(object):
     def shutdown(self):
         self.__neo__.shutdown()
         
+
+    def read_node(self, node, policy, result):
+        return_node = None
+        if node['id'] in self.node:
+            if policy.update_when_found(node, self.node[node['id']]):
+                node['net_id'] = node['id']
+                del node['id']
+                self.node[node['net_id']].update(node)
+                return_node = self.node[node['net_id']]
+                result.updated += 1
+            else:
+                result.conflicted += 1
+        elif policy.create_when_not_found(node):
+            result.inserted += 1
+            return_node = self.node(**node)
+        else:
+            #TODO: result.missing +=1
+            print 'AAAAAAAHOYYYYYYyy'
+            pass
+        return return_node
+
     def read_nodes(self, nodeFeed, transaction):
         
         result = FeedResult(datetime.today())
         
         try:
             for node in nodeFeed:
-                if node['id'] in self.node:
-                    if nodeFeed.always_update or nodeFeed.conflict(node, self.node[node['id']]):
-                        node['net_id'] = node['id']
-                        del node['id']
-                        self.node[node['net_id']].update(node)        
-                        result.updated += 1
-                    else:
-                        result.conflicted += 1
-                else:
-                    result.inserted += 1
-                    self.node(**node)
+                self.read_node(node, nodeFeed.node_policy, result)
         except:
             result.status = FeedResult.FAILURE
             transaction.failure()
@@ -399,7 +413,27 @@ class GraphDatabase(object):
         finally:
             self.add_to_history(nodeFeed.id, result)
             transaction.finish()
-        return result    
+        return result
+
+    def read_links(self, linkFeed, transaction):
+        result = FeedResult(datetime.today())
+        result.nodes = FeedResult(result.datetime)
+        try:
+            for link in linkFeed:
+                start = self.read_node(link['start'], linkFeed.node_policy, result.nodes)
+                end = self.read_node(link['end'], linkFeed.node_policy, result.nodes)
+                self.link(link['id'], start, end, link['type'])
+                result.inserted += 1
+        except Exception:
+            result.status = FeedResult.FAILURE
+            transaction.failure()
+        else:
+            result.status = FeedResult.OK
+            transaction.success()
+        finally:
+            transaction.finish()
+        
+        return result
     
     def add_to_history(self, feed_id, result):
 #        if feed_id not in self.__history__:
@@ -418,6 +452,31 @@ class GraphDatabase(object):
     @property
     def transaction(self):
         return self.__neo__.transaction
+
+class NodeReadPolicy(object):
+    NONE = 2
+    CREATE_AND_UPDATE = 3
+    CREATE = 5
+    UPDATE = 7
+    
+    def __init__(self, policy, conflict=None):
+        self.policy = policy
+        self.conflict = conflict
+        
+    def update_when_found(self, new, old):
+        return self.policy == self.UPDATE or self.policy == self.CREATE_AND_UPDATE or (self.conflict and self.conflict(new, old))
+    
+    def create_when_not_found(self, new):
+        return self.policy == self.CREATE or self.policy == self.CREATE_AND_UPDATE 
+
+class LinkFeed(object):
+    def __init__(self, data, node_policy=NodeReadPolicy.NONE):
+        self.data = data
+        self.node_policy = NodeReadPolicy(policy=node_policy)
+    
+    def __getitem__(self, key):
+        return self.data[key]
+
 #        if self.__transaction__:
 #            return self.__transaction__
 #        

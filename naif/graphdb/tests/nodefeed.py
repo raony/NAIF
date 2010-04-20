@@ -4,29 +4,16 @@ Created on Apr 19, 2010
 @author: raony
 '''
 import unittest
-from base import GraphDatabaseTest
 from datetime import datetime
-from graphdb.graphdatabase import FeedResult
-
-class TransactionMock(object):
-    def __init__(self):
-        self.success_called = 0
-        self.failure_called = 0
-        self.finish_called = 0
-        
-    def success(self):
-        self.success_called += 1
-    def failure(self):
-        self.failure_called += 1
-    def finish(self):
-        self.finish_called += 1
+from graphdb.graphdatabase import FeedResult, NodeReadPolicy
+from base import FeedTest
 
 class NodeFeedMock(object):
-    def __init__(self, data, id=0):
+    def __init__(self, data, policy=NodeReadPolicy.CREATE, id=0):
         self.id = id
         self.data = data
         self.conf_comparisons = []
-        self.always_update = False
+        self.node_policy = NodeReadPolicy(policy, self.conflict)
         
     def __getitem__(self, index):
         return self.data[index]
@@ -40,10 +27,7 @@ def read_node(args):
         result[attrs[i]] = arg
     return result
 
-class NodeFeedTest(GraphDatabaseTest):
-    def setUp(self):
-        super(NodeFeedTest, self).setUp()
-        self.transactMock = TransactionMock()
+class NodeFeedTest(FeedTest):
         
     def test_node_feed_read(self):
         raw = [[1, 'tipoum'], [2, 'tipodois'], [3, 'tipoum'], [18, 'tiposeis', 'testando']]
@@ -116,8 +100,7 @@ class NodeFeedTest(GraphDatabaseTest):
         self.assertEquals(1, self.transactMock.finish_called)
         
     def test_node_feed_update_always(self):
-        nf = NodeFeedMock([{'type': 'vermelho', 'id' : 1, 'age': 16, 'newp': 'ahoy'}])
-        nf.always_update = True
+        nf = NodeFeedMock([{'type': 'vermelho', 'id' : 1, 'age': 16, 'newp': 'ahoy'}], policy=NodeReadPolicy.UPDATE)
         
         self.graphdb.node(1, 'vermelho', age=15)
         result = self.graphdb.read_nodes(nf, self.transactMock)
@@ -147,8 +130,7 @@ class NodeFeedTest(GraphDatabaseTest):
             self.assertEquals(rx.datetime, ry.datetime)
         r1 = self.graphdb.read_nodes(NodeFeedMock(id=1, data=[{'id': 1, 'name': 'john'}]), self.transactMock)
         r2 = self.graphdb.read_nodes(NodeFeedMock(id=1, data=[{'name': 'john'}]), self.transactMock)
-        nf = NodeFeedMock(id=1, data=[{'id': 1, 'age': 12}, {'id': 2, 'name': 'john'}])
-        nf.always_update = True
+        nf = NodeFeedMock(id=1, data=[{'id': 1, 'age': 12}, {'id': 2, 'name': 'john'}], policy=NodeReadPolicy.CREATE_AND_UPDATE)
         r3 = self.graphdb.read_nodes(nf, self.transactMock)
         
         results = self.graphdb.feed_history(feed_id = 1)
