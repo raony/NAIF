@@ -18,11 +18,27 @@ class LinkFeedTest(FeedTest):
                    'start': {'id': 2, 'type': 'typeC'},
                   'end': {'id': 3, 'type': 'typeC'},
                   'type': 'WORKSFOR'}]
-        result = self.graphdb.read_links(LinkFeed(links, node_policy=NodeReadPolicy.UPDATE), self.transactMock)
+        result = self.graphdb.read_links(LinkFeed(links, node_policy=NodeReadPolicy.CREATE_AND_UPDATE), self.transactMock)
         self.assertEquals(FeedResult.OK, result.status)
         self.assertEquals(2, result.inserted)
-#        self.assertEquals(3, result.nodes.inserted)
-        print result.nodes
+        self.assertEquals(3, result.nodes.inserted)
+#        print result.nodes
+
+    def test_missing_nodes(self):
+        links = [{'id': 1,
+                  'start': {'id': 1, 'type': 'typeA'}, 
+                  'end': {'id': 2, 'type': 'typeB'},
+                  'type': 'KNOWS'},
+                  {'id': 2,
+                   'start': {'id': 2, 'type': 'typeC'},
+                  'end': {'id': 3, 'type': 'typeC'},
+                  'type': 'WORKSFOR'}]
+        result = self.graphdb.read_links(LinkFeed(links, node_policy=NodeReadPolicy.UPDATE), self.transactMock)
+        self.assertEquals(FeedResult.OK, result.status)
+        self.assertEquals(0, result.inserted)
+        self.assertEquals(links, result.missing)
+        self.assertEquals(3, len(result.nodes.missing))
+        
         
          
         

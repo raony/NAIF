@@ -144,13 +144,18 @@ class FeedResult(object):
         self.inserted = 0
         self.conflicted = 0
         self.updated = 0
+        self.missing = []
     
     @property
     def total(self):
-        return self.inserted + self.conflicted + self.updated
+        return self.inserted + self.conflicted + self.updated + len(self.missing)
     
     def __str__(self):
-        return '{3} >> inserted: {0}, updated: {1}, conflicted: {2}'.format(self.inserted, self.updated, self.conflicted, self.status)
+        return '{3} >> inserted: {0}, updated: {1}, conflicted: {2}, missing: {4}'.format(self.inserted, 
+                                                                                          self.updated, 
+                                                                                          self.conflicted, 
+                                                                                          self.status, 
+                                                                                          len(self.missing))
 
 class FeedHistory(object):
             
@@ -392,9 +397,9 @@ class GraphDatabase(object):
             result.inserted += 1
             return_node = self.node(**node)
         else:
-            #TODO: result.missing +=1
-            print 'AAAAAAAHOYYYYYYyy'
-            pass
+            if not [n['id'] for n in result.missing if n['id'] == node['id']]:
+                result.missing.append(node)
+            return_node = None
         return return_node
 
     def read_nodes(self, nodeFeed, transaction):
@@ -422,8 +427,11 @@ class GraphDatabase(object):
             for link in linkFeed:
                 start = self.read_node(link['start'], linkFeed.node_policy, result.nodes)
                 end = self.read_node(link['end'], linkFeed.node_policy, result.nodes)
-                self.link(link['id'], start, end, link['type'])
-                result.inserted += 1
+                if start and end:
+                    self.link(link['id'], start, end, link['type'])
+                    result.inserted += 1
+                else:
+                    result.missing.append(link)
         except Exception:
             result.status = FeedResult.FAILURE
             transaction.failure()
