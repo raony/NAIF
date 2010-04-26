@@ -133,6 +133,17 @@ class LinkFeedTest(FeedTest):
         compare(r3, results[2]) 
         compare(r2, results[3])        
         compare(r1, results[4]) 
+    
+    def test_link_missing(self):
+        r = self.graphdb.read_links(LinkFeed([{'id': 1, 'start': {'id': 1}, 'end': {'id': 3}},
+                                               {'id': 2, 'start': {'id': 2}, 'end': {'id': 3}}, ],
+                                         link_policy=FeedPolicy(FeedPolicy.UPDATE),
+                                         node_policy=FeedPolicy(FeedPolicy.CREATE)), self.transactMock)
+        self.assertEquals(FeedResult.OK, r.status)
+        self.assertEquals(2, len(r.missing))
+        self.assertEquals(0, r.inserted)
+        self.assertEquals(0, r.updated)
+        self.assertEquals(0, r.conflicted)
 
 
 if __name__ == "__main__":
