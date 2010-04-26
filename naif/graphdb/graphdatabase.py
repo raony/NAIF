@@ -6,133 +6,11 @@ This is a wrapper module over neo4j
 
 """
 import neo4j
-import pickle
 from datetime import datetime
 
-class NodeType(object):
-    def __init__(self, name):
-        self.name = name
-    
-    def __str__(self):
-        return self.name
-    
-    def __eq__(self, obj):
-        return (type(obj) == type(self.name) and self.name == obj) or (type(obj) == type(self) and self.name == obj.name)
-    
-    __unicode__ = __str__
-    
-class LinkType(object):
-    BINARY = 1
-    VALUED = 0
-    MIXED = -1
-    
-    def __eq__(self, obj):
-        return (type(obj) == type(self.name) and self.name == obj) or (type(obj) == type(self) and self.name == obj.name)
-    
-    def __init__(self, name, binary):
-        if binary not in [1,0,-1]:
-            raise ValueError("Invalid binary value.")
-        self.name = name
-        self.binary = binary
-    
-    def __str__(self):
-        bstr = ''
-        if self.binary == 0:
-            bstr = 'V'
-        elif self.binary == 1:
-            bstr = 'B'
-        else:
-            bstr = 'M'
-        return '{0} - {1}'.format(self.name, bstr)
-    
-    __unicode__ = __str__
-
-class Link(object):
-    class AlreadyExist(Exception):
-        pass
-    
-    def __init__(self, neo_link):
-        self.__link__ = neo_link
-
-    @property
-    def start(self):
-        return Node(self.__link__.start)
-    
-    @property
-    def end(self):
-        return Node(self.__link__.end)
-    
-    @property
-    def id(self):
-        return self.__link__['net_id']
-    
-    @property
-    def type(self):
-        return self.__link__.type
-    
-    @property
-    def binary(self):
-        return self.__link__['binary']
-
-    @property
-    def strength(self):
-        return self.__link__['strength']
-    
-    def __eq__(self, obj):
-        return type(obj) == type(self) and obj.__link__ == self.__link__
-
-    def __getitem__(self, index):
-        return self.__link__[index]
-    
-    def __delitem__(self, key):
-        if key in ['binary', 'strength']:
-            raise KeyError('{0} cannot be deleted.'.format(key))
-        del self.__link__[key]
-    
-    def __setitem__(self, key, value):
-        if key in ['binary', 'strength']:
-            raise KeyError('{0} is a read-only attribute.'.format(key))
-        self.__link__[key] = value
-    
-    def __contains__(self, key):
-        return key in self.__link__
-
-
-class Node(object):
-    class AlreadyExist(Exception):
-        pass
-    def __init__(self, neo_node):
-        self.__node__ = neo_node
-    
-    @property
-    def id(self):
-        return self.__node__['net_id']
-    
-    @property
-    def type(self):
-        return self.__node__['type']
-    
-    def __eq__(self, obj):
-        return type(self) == type(obj) and self.__node__ == obj.__node__
-    
-    def __getitem__(self, index):
-        return self.__node__[index]
-    
-    def __delitem__(self, index):
-        if index == 'type':
-            raise KeyError("'type' attribute cannot be deleted.")
-        del self.__node__[index]
-    
-    def __setitem__(self, index, value):
-        if index == 'type':
-            raise KeyError("'type' attribute is read-only.")
-        self.__node__[index] = value
-    
-    def __contains__(self, key):
-        return key in self.__node__
-    
-    def update(self, *args, **kwargs):
-        return self.__node__.update(*args, **kwargs)
+#from links import Link
+from graphdb.nodes import NodeManager
+from graphdb.links import LinkManager
     
 class FeedResult(object):
     OK = 1
@@ -168,11 +46,15 @@ class FeedHistory(object):
             self.__neo__.ref.FEEDHISTORY(self.__history_head__)
             
     def __node__(self, result):
-        return self.__neo__.node(datetime=result.datetime.strftime('%Y%m%d%H%M%S%f'),
+        result_node = self.__neo__.node(datetime=result.datetime.strftime('%Y%m%d%H%M%S%f'),
                                  status=result.status, 
                                  inserted=result.inserted,
                                  updated = result.updated,
                                  conflicted = result.conflicted)
+        if 'nodes' in result.__dict__:
+            result_nodes_node = self.__node__(result.nodes)
+            result_node.NODES(result_nodes_node)
+        return result_node 
     
     def __result__(self, node):
         result = FeedResult(datetime.strptime(node['datetime'], '%Y%m%d%H%M%S%f'))
@@ -180,6 +62,8 @@ class FeedHistory(object):
         result.inserted = int(node['inserted'].toString())
         result.conflicted = int(node['conflicted'].toString())
         result.updated = int(node['updated'].toString())
+        if node.NODES.outgoing.single != None:
+            result.nodes = self.__result__(node.NODES.single.end)
         return result
     
     def __getitem__(self, id):
@@ -208,7 +92,7 @@ class FeedHistory(object):
             def __len__(self):
                 end = len(self.__data__)
                 try:
-                    while (end):
+                    while (True):
                         self.__getitem__(end)
                         end += 1
                 except IndexError:
@@ -247,139 +131,75 @@ class GraphDatabase(object):
             
         self.__neo__ = neo4j.GraphDatabase(path, log=logger)
         self.__neopath__ = path
-        self.__node_index__ = self.__neo__.index('node index', create=True)
         self.__history__ = None 
+
+    def _add_global_property(self, key, value):
+        self.__neo__.ref[key] = value
     
-    def __types__(self, type_attr):
-        types = self.__neo__.ref.get(type_attr, '')
-        return types and pickle.loads(str(types)) or []
+    def _get_global_property(self, key, default=''):
+        return str(self.__neo__.ref.get(key, default))
     
-    def __node_types__(self):
-        return self.__types__('node_types')
-    
-    def __link_types__(self):
-        return self.__types__('link_types')
-    
-    def __nodes_by_type__(self, type):
-        class NodeByType(neo4j.Traversal):
-            types = [ neo4j.Outgoing.__getattr__(type.upper()) ] #@UndefinedVariable
-            order = neo4j.DEPTH_FIRST #@UndefinedVariable
-            stop = neo4j.STOP_AT_END_OF_GRAPH #@UndefinedVariable
+    def _traverse_node_by_type(self, node_types):
+        class NodeTraverse(neo4j.Traversal):
+            types = map(lambda x: neo4j.Outgoing.__getattr__(x), node_types) #@UndefinedVariable
+            order = neo4j.BREADTH_FIRST #@UndefinedVariable
+            stop = neo4j.StopAtDepth(1) #@UndefinedVariable
             returnable = neo4j.RETURN_ALL_BUT_START_NODE #@UndefinedVariable
         
-            def __iter__(self):
-                class MyIter(object):
-                    def __init__(self, iter):
-                        self.iter = iter
-                    def next(self):
-                        return Node(self.iter.next())
-                return MyIter(super(NodeByType, self).__iter__())
-                
-        return NodeByType(self.__neo__.ref)
+        return NodeTraverse(self.__neo__.ref)
 
-    def add_node_type(self, type):
-        type = NodeType(type)
-        types = self.__types__('node_types')
-        if type not in types:
-            types.append(type)
-        self.__neo__.ref['node_types'] = pickle.dumps(types)
+    def _new_node(self, id, type, **kwargs):
+        node = self.__neo__.node(net_id=id, type=type, **kwargs)
+        self.__neo__.ref.__getattr__(type)(node)
+        return node
     
-    def add_link_type(self, type, binary):
-        type = LinkType(type, binary and LinkType.BINARY or LinkType.VALUED)
-        types = self.__types__('link_types')
-        if type in types and types[types.index(type)].binary != binary:
-            types[types.index(type)].binary = LinkType.MIXED
-        else:
-            types.append(type)
-        self.__neo__.ref['link_types'] = pickle.dumps(types)
+    def _index(self, name):
+        return self.__neo__.index(name, create=True)
+    
+    def _raw_index(self, name):
+        class RawIndexTraverse(neo4j.Traversal):
+            types = [ neo4j.Outgoing.index ] #@UndefinedVariable
+            order = neo4j.BREADTH_FIRST #@UndefinedVariable
+            def isReturnable(self, position):
+                return (not position.is_start and
+                        position['index_name'] == name)
         
+        class raw_index(object):
+            def __init__(self, _raw_index):
+                self._raw_index = _raw_index
+            def __getitem__(self, key):
+                result = self._raw_index.get(str(key), None)
+                return result and int(result.toString()) or None
+            def __setitem__(self, key, value):
+                self._raw_index[str(key)] = value
+            def __delitem__(self, key):
+                del self._raw_index[str(key)]
+            def __contains__(self, key):
+                return str(key) in self._raw_index
+            def __iter__(self):
+                for key in self._raw_index:
+                    if key == 'index_name': continue
+                    yield key
+                        
+        indexes = [n for n in RawIndexTraverse(self.__neo__.ref)]
+        if indexes:
+            return raw_index(indexes[0])
+        else:
+            index = self.__neo__.node(index_name=name)
+            self.__neo__.ref.index(index)
+            return raw_index(index)
+
+    @property
+    def _relationship(self):
+        return self.__neo__.relationship
+    
     @property
     def node(self):
-        gdb = self
-        class nodelist(object):
-            @property
-            def type(self):
-                class nodetype(object):
-                    def __init__(self):
-                        self.types = gdb.__node_types__()
-                    def __getitem__(self, index):
-                        return self.types[index]
-                    def __contains__(self, obj):
-                        return obj in self.types
-                    def __len__(self):
-                        return len(self.types)
-                    def __call__(self, type):
-                        return gdb.__nodes_by_type__(type)
-                return nodetype()
-            
-            def __getitem__(self, index):
-                result = gdb.__node_index__[str(index)]
-                if result:
-                    result = Node(result)
-                return result
-            def __contains__(self, key):
-                return gdb.__node_index__[str(key)] != None
-            def __call__(self, id, type='node', **kwargs):
-                if gdb.__node_index__[str(id)]:
-                    raise Node.AlreadyExist
-                node = gdb.__neo__.node(net_id=id, type=type, **kwargs)
-                
-                gdb.add_node_type(type)
-                
-                gdb.__neo__.ref.__getattr__(type.upper())(node)
-                gdb.__node_index__[str(id)] = node
-                return Node(node)
-        return nodelist()
+        return NodeManager(self)
     
     @property
     def link(self):
-        gdb = self
-        class linklist(object):
-            @property
-            def type(self):
-                class nodetype(object):
-                    def __init__(self):
-                        self.types = gdb.__link_types__()
-                    def __getitem__(self, index):
-                        return self.types[index]
-                    def __contains__(self, obj):
-                        return obj in self.types
-                    def __len__(self):
-                        return len(self.types)
-#                    def __call__(self, type):
-#                        return gdb.__nodes_by_type__(type)
-                return nodetype()
-            
-            def __delitem__(self, key):
-                self[key].delete()
-            
-            def __getitem__(self, key):
-                result = None
-                try:
-                    for rel in gdb.__neo__.relationship:
-                        if rel.get('net_id', None) == key:
-                            result = Link(rel)
-                            break
-                except Exception, e:
-                    if 'No transaction found' in str(e):
-                        raise e
-                return result
-            def __contains__(self, key):
-                return self[key] != None
-            def __call__(self, id, start, end, type='LINK', strength=None, **kwargs):
-                if kwargs.get('binary', None) and strength:
-                    raise ValueError('Binary links cannot have strength.')
-                if id in self:
-                    raise Link.AlreadyExist
-                if strength == None:
-                    binary = True
-                    strength = 1.0
-                else:
-                    binary = False
-                gdb.add_link_type(type, binary)
-                link = start.__node__.__getattr__(type)(end.__node__, net_id=id, binary=binary, strength=strength, **kwargs)
-                return Link(link)
-        return linklist()
+        return LinkManager(self)
 
     def shutdown(self):
         self.__neo__.shutdown()
@@ -468,13 +288,14 @@ class GraphDatabase(object):
                         self.link(**dlink)
 #                        print 7
                     
-        except Exception:
+        except:
             result.status = FeedResult.FAILURE
             transaction.failure()
         else:
             result.status = FeedResult.OK
             transaction.success()
         finally:
+            self.add_to_history(linkFeed.id, result)
             transaction.finish()
         
         return result
@@ -514,7 +335,8 @@ class FeedPolicy(object):
         return self.policy == self.CREATE or self.policy == self.CREATE_AND_UPDATE 
 
 class LinkFeed(object):
-    def __init__(self, data, link_policy=None, node_policy=None):
+    def __init__(self, data, id=1, link_policy=None, node_policy=None):
+        self.id = id
         self.data = data
         self.link_policy = link_policy or FeedPolicy(FeedPolicy.NONE)
         self.node_policy = node_policy or FeedPolicy(FeedPolicy.NONE)

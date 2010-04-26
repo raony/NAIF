@@ -4,7 +4,7 @@ Created on Apr 19, 2010
 @author: raony
 '''
 import unittest
-from graphdb.graphdatabase import Node
+from graphdb.nodes import Node
 from base import GraphDatabaseTest
 
 
@@ -17,11 +17,24 @@ class NodeTest(GraphDatabaseTest):
         
     def test_new_node_ref_relation(self):
         node = self.graphdb.node(5)
-        self.assertEquals(self.graphdb.__neo__.ref, node.__node__.NODE.single.start)
+        self.assertEquals(self.graphdb.__neo__.ref, node.__node__.node.single.start)
     
     def test_get_node_by_id(self):
         node = self.graphdb.node(16)
         self.assertEquals(node, self.graphdb.node[16])
+        
+    def test_list_all_nodes(self):
+        e1 = self.graphdb.node(32, type='event')
+        e2 = self.graphdb.node(11, type='member')
+        e3 = self.graphdb.node(5, type='event')
+        e4= self.graphdb.node(6)
+        result = [n for n in self.graphdb.node]
+        self.assertEquals(4, len(result))
+        self.assertTrue(e1 in result)
+        self.assertTrue(e2 in result)
+        self.assertTrue(e3 in result)
+        self.assertTrue(e4 in result)
+        
         
     def test_node_not_found(self):
         self.assertTrue(not self.graphdb.node[16])

@@ -5,7 +5,8 @@ Created on Apr 19, 2010
 '''
 import unittest
 from base import GraphDatabaseTest
-from graphdb.graphdatabase import LinkType, Link
+from graphdb.links import LinkType, Link
+import pickle
 
 
 class LinkTest(GraphDatabaseTest):
@@ -162,7 +163,42 @@ class LinkTest(GraphDatabaseTest):
             self.fail('Should rise a KeyError exception.')
         except KeyError:
             pass
+    
+    def test_remove_and_list(self):
+        
+        links = []
+        for i in range(10):
+            links.append(self.graphdb.link(i, self.graphdb.node(i*2), self.graphdb.node(i*2+1)))
+        
+        import random
+        for j in range(2):
+            k = random.randint(0,9-j)
+            del self.graphdb.link[ links[k].id ]
+            del links[k]
 
+#        FIXME: currently i do not know how to easily make a independent tests with successful transactions
+#        FIXME: without the self.transaction.success the relationship lookup of neo4j python still returns deleted links
+#        self.transaction.success()
+#        self.transaction.finish()
+#        self.transaction = self.graphdb.transaction()
+        
+        for link in links:
+            self.assertEquals(link, self.graphdb.link[link.id])
+            
+        for link in self.graphdb.link:
+            try:
+                self.assertTrue(link in links)
+            except:
+                print link
+                raise
+        
+        for link in links:
+            try:
+                self.assertTrue(link.id in self.graphdb.link)
+            except:
+                print link
+                raise
+        
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
