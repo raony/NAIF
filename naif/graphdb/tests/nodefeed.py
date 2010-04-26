@@ -5,15 +5,15 @@ Created on Apr 19, 2010
 '''
 import unittest
 from datetime import datetime
-from graphdb.graphdatabase import FeedResult, NodeReadPolicy
+from graphdb.graphdatabase import FeedResult, FeedPolicy
 from base import FeedTest
 
 class NodeFeedMock(object):
-    def __init__(self, data, policy=NodeReadPolicy.CREATE, id=0):
+    def __init__(self, data, policy=FeedPolicy.CREATE, id=0):
         self.id = id
         self.data = data
         self.conf_comparisons = []
-        self.node_policy = NodeReadPolicy(policy, self.conflict)
+        self.node_policy = FeedPolicy(policy, self.conflict)
         
     def __getitem__(self, index):
         return self.data[index]
@@ -100,7 +100,7 @@ class NodeFeedTest(FeedTest):
         self.assertEquals(1, self.transactMock.finish_called)
         
     def test_node_feed_update_always(self):
-        nf = NodeFeedMock([{'type': 'vermelho', 'id' : 1, 'age': 16, 'newp': 'ahoy'}], policy=NodeReadPolicy.UPDATE)
+        nf = NodeFeedMock([{'type': 'vermelho', 'id' : 1, 'age': 16, 'newp': 'ahoy'}], policy=FeedPolicy.UPDATE)
         
         self.graphdb.node(1, 'vermelho', age=15)
         result = self.graphdb.read_nodes(nf, self.transactMock)
@@ -130,7 +130,7 @@ class NodeFeedTest(FeedTest):
             self.assertEquals(rx.datetime, ry.datetime)
         r1 = self.graphdb.read_nodes(NodeFeedMock(id=1, data=[{'id': 1, 'name': 'john'}]), self.transactMock)
         r2 = self.graphdb.read_nodes(NodeFeedMock(id=1, data=[{'name': 'john'}]), self.transactMock)
-        nf = NodeFeedMock(id=1, data=[{'id': 1, 'age': 12}, {'id': 2, 'name': 'john'}], policy=NodeReadPolicy.CREATE_AND_UPDATE)
+        nf = NodeFeedMock(id=1, data=[{'id': 1, 'age': 12}, {'id': 2, 'name': 'john'}], policy=FeedPolicy.CREATE_AND_UPDATE)
         r3 = self.graphdb.read_nodes(nf, self.transactMock)
         
         results = self.graphdb.feed_history(feed_id = 1)
@@ -141,6 +141,15 @@ class NodeFeedTest(FeedTest):
     
     def test_node_history_empty(self):
         self.assertTrue(not self.graphdb.feed_history(1))
+    
+    def test_node_missing(self):
+        nf = NodeFeedMock(id=1, data=[{'id': 1, 'age': 12}, {'id': 2, 'name': 'john'}], policy=FeedPolicy.UPDATE)
+        r = self.graphdb.read_nodes(nf, self.transactMock)
+        self.assertEquals(FeedResult.OK, r.status)
+        self.assertEquals(2, len(r.missing))
+        self.assertEquals(0, r.inserted)
+        self.assertEquals(0, r.updated)
+        self.assertEquals(0, r.conflicted)
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

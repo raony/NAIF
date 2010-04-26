@@ -350,6 +350,9 @@ class GraphDatabase(object):
 #                        return gdb.__nodes_by_type__(type)
                 return nodetype()
             
+            def __delitem__(self, key):
+                self[key].delete()
+            
             def __getitem__(self, key):
                 result = None
                 try:
@@ -383,6 +386,7 @@ class GraphDatabase(object):
         
 
     def read_node(self, node, policy, result):
+        node = dict(node)
         return_node = None
         if node['id'] in self.node:
             if policy.update_when_found(node, self.node[node['id']]):
@@ -424,14 +428,46 @@ class GraphDatabase(object):
         result = FeedResult(datetime.today())
         result.nodes = FeedResult(result.datetime)
         try:
+            update = False
+            create = False
+#            print 1
             for link in linkFeed:
-                start = self.read_node(link['start'], linkFeed.node_policy, result.nodes)
-                end = self.read_node(link['end'], linkFeed.node_policy, result.nodes)
-                if start and end:
-                    self.link(link['id'], start, end, link['type'])
-                    result.inserted += 1
+#                print 2
+#                import pdb
+#                pdb.set_trace()
+                if link['id'] in self.link:
+#                    print 3
+                    if linkFeed.link_policy.update_when_found(link, self.link[link['id']]):
+                        update = True                        
+                    else:
+                        result.conflicted += 1
+                elif linkFeed.link_policy.create_when_not_found(link):
+#                    print 4
+                    create = True
                 else:
-                    result.missing.append(link)
+#                    print 5
+                    if not [l['id'] for l in result.missing if l['id'] == link['id']]:
+                        result.missing.append(link)  
+                
+                if update or create:
+                    dlink = dict(link)
+                    
+                    dlink['start'] = self.read_node(dlink['start'], linkFeed.node_policy, result.nodes)
+                    dlink['end'] = self.read_node(dlink['end'], linkFeed.node_policy, result.nodes)
+                    if not(dlink['start'] and dlink['end']):
+                        result.missing.append(link)
+                    else:
+                        if update:
+                            del self.link[dlink['id']]
+                            result.updated += 1
+                        else:
+                            result.inserted += 1
+#                        print 6
+#                        import pdb
+#                        pdb.set_trace()
+                        self.link(**dlink)
+#                        print 7
+                    
         except Exception:
             result.status = FeedResult.FAILURE
             transaction.failure()
@@ -461,7 +497,7 @@ class GraphDatabase(object):
     def transaction(self):
         return self.__neo__.transaction
 
-class NodeReadPolicy(object):
+class FeedPolicy(object):
     NONE = 2
     CREATE_AND_UPDATE = 3
     CREATE = 5
@@ -478,9 +514,10 @@ class NodeReadPolicy(object):
         return self.policy == self.CREATE or self.policy == self.CREATE_AND_UPDATE 
 
 class LinkFeed(object):
-    def __init__(self, data, node_policy=NodeReadPolicy.NONE):
+    def __init__(self, data, link_policy=None, node_policy=None):
         self.data = data
-        self.node_policy = NodeReadPolicy(policy=node_policy)
+        self.link_policy = link_policy or FeedPolicy(FeedPolicy.NONE)
+        self.node_policy = node_policy or FeedPolicy(FeedPolicy.NONE)
     
     def __getitem__(self, key):
         return self.data[key]

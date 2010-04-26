@@ -11,7 +11,7 @@ class GraphDatabaseTest(unittest.TestCase):
 
 
     def setUp(self):
-        self.graphdb = GraphDatabase('neo_test/', True)
+        self.graphdb = GraphDatabase('neo_test2/', True)
         self.transaction= self.graphdb.transaction()
 
     def tearDown(self):
