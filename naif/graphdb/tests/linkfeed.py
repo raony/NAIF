@@ -144,6 +144,10 @@ class LinkFeedTest(FeedTest):
         self.assertEquals(0, r.inserted)
         self.assertEquals(0, r.updated)
         self.assertEquals(0, r.conflicted)
+    
+    def test_sociomatrix(self):
+        # proximos passos
+        self.fail('not implemented')
 
 
 if __name__ == "__main__":

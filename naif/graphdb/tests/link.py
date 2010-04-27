@@ -6,7 +6,7 @@ Created on Apr 19, 2010
 import unittest
 from base import GraphDatabaseTest
 from graphdb.links import LinkType, Link
-import pickle
+from datetime import datetime
 
 
 class LinkTest(GraphDatabaseTest):
@@ -198,6 +198,19 @@ class LinkTest(GraphDatabaseTest):
             except:
                 print link
                 raise
+    
+    def test_time_measured(self):
+        start = self.graphdb.node(1)
+        end = self.graphdb.node(2)
+        self.graphdb.link(16, start, end, familiar=True)
+        self.assertTrue((datetime.today() - self.graphdb.link[16].measured_time).seconds < 1.0)
+
+    def test_time_measured_as_parameter(self):
+        start = self.graphdb.node(1)
+        end = self.graphdb.node(2)
+        self.graphdb.link(16, start, end, familiar=True, measured_time=datetime.today())
+        self.assertTrue((datetime.today() - self.graphdb.link[16].measured_time).seconds < 1.0)
+        
         
 
 if __name__ == "__main__":

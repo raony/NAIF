@@ -5,6 +5,7 @@ Created on Apr 26, 2010
 '''
 from base import GraphTypeManager
 from nodes import Node
+from datetime import datetime
 
 class LinkType(object):
     BINARY = 1
@@ -65,6 +66,10 @@ class Link(object):
     @property
     def strength(self):
         return self.__link__['strength']
+    
+    @property
+    def measured_time(self):
+        return datetime.strptime(self.__link__['measured_time'], '%Y%m%d%H%M%S%f')
     
     def _delete(self):
         return self.__link__.delete()
@@ -131,8 +136,8 @@ class LinkManager(object):
         def __contains__(self, key):
             return key in self._index
         
-        def __call__(self, id, start, end, type='LINK', strength=None, **kwargs):
-            if kwargs.get('binary', None) and strength:
+        def __call__(self, id, start, end, type='LINK', strength=None, binary=None, measured_time=None, **kwargs):
+            if binary and strength:
                 raise ValueError('Binary links cannot have strength.')
             if id in self:
                 raise Link.AlreadyExist
@@ -141,7 +146,17 @@ class LinkManager(object):
                 strength = 1.0
             else:
                 binary = False
+            if not measured_time:
+                measured_time = datetime.today()
+            
+            measured_time = measured_time.strftime('%Y%m%d%H%M%S%f')
+            
             self.type.add(LinkType(type, binary and LinkType.BINARY or LinkType.VALUED))
-            link = start.__node__.__getattr__(type)(end.__node__, net_id=id, binary=binary, strength=strength, **kwargs)
+            link = start.__node__.__getattr__(type)(end.__node__, 
+                                                    net_id=id, 
+                                                    binary=binary, 
+                                                    strength=strength, 
+                                                    measured_time=measured_time,
+                                                     **kwargs)
             self._index[id] = link.id
             return Link(link)
